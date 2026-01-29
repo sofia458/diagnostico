@@ -5,15 +5,15 @@
  */
 
 class Database {
-    private $host = "localhost:3308";
-    private $db_name = "employessdb";
-    private $username = "root";
-    private $password = "";
+    private $host = "localhost:3306";
+    private $db_name = "employees";
+    private $username = "bigdata";
+    private $password = "bigdata123";
     public $conn;
 
     public function getConnection() {
         $this->conn = null;
-        
+
         try {
             $this->conn = new PDO(
                 "mysql:host=" . $this->host . ";dbname=" . $this->db_name,
@@ -25,7 +25,7 @@ class Database {
         } catch(PDOException $exception) {
             echo "Error de conexión: " . $exception->getMessage();
         }
-        
+
         return $this->conn;
     }
 }
