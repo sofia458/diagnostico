@@ -1,5 +1,8 @@
 // Variables globales
 let currentChart = null;
+let currentReportData = null;
+let currentPage = 1;
+const rowsPerPage = 20;
 
 // Navegación entre secciones
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -7,14 +10,17 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         // Actualizar botones activos
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
-        
+
         // Mostrar sección correspondiente
         const section = this.dataset.section;
         document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
         document.getElementById(section).classList.add('active');
-        
+
         // Limpiar resultados previos
         document.getElementById('reportResult').innerHTML = '';
+        currentReportData = null;
+        currentPage = 1;
+
         if (currentChart) {
             currentChart.destroy();
             currentChart = null;
@@ -26,44 +32,137 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 function loadReport(reportNumber) {
     const resultDiv = document.getElementById('reportResult');
     resultDiv.innerHTML = '<div class="loading-container"><div class="loading"></div><p class="loading-text">Cargando datos...</p></div>';
-    
+
+    currentPage = 1;
     let action = 'report' + reportNumber;
     let url = 'api/employees.php?action=' + action;
-    
+
     fetch(url)
         .then(response => response.json())
         .then(result => {
             if (result.success) {
-                switch(reportNumber) {
-                    case 1:
-                        displayReport1(result.data, result.departments);
-                        break;
-                    case 2:
-                        displayReport2(result.data);
-                        break;
-                    case 3:
-                        displayReport3(result.data);
-                        break;
-                    case 4:
-                        displayReport4(result.data);
-                        break;
-                    case 5:
-                        displayReport5(result.data);
-                        break;
-                }
+                currentReportData = {
+                    number: reportNumber,
+                    data: result.data,
+                    departments: result.departments
+                };
+
+                displayReport(reportNumber, result.data, result.departments);
             } else {
-                resultDiv.innerHTML = '<p style="color: red;">Error al cargar los datos: ' + result.error + '</p>';
+                resultDiv.innerHTML = '<p class="error-message">Error al cargar los datos: ' + result.error + '</p>';
             }
         })
         .catch(error => {
-            resultDiv.innerHTML = '<p style="color: red;">Error de conexión: ' + error + '</p>';
+            resultDiv.innerHTML = '<p class="error-message">Error de conexión: ' + error + '</p>';
         });
+}
+
+// Función principal para mostrar reportes
+function displayReport(reportNumber, data, departments) {
+    switch(reportNumber) {
+        case 1:
+            displayReport1(data, departments);
+            break;
+        case 2:
+            displayReport2(data);
+            break;
+        case 3:
+            displayReport3(data);
+            break;
+        case 4:
+            displayReport4(data);
+            break;
+        case 5:
+            displayReport5(data);
+            break;
+    }
+}
+
+// Función para crear paginación
+function createPagination(totalRows, currentPage, onPageChange) {
+    const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+    if (totalPages <= 1) return '';
+
+    let html = '<div class="pagination-container">';
+    html += '<div class="pagination-info">';
+    html += `Mostrando ${(currentPage - 1) * rowsPerPage + 1} - ${Math.min(currentPage * rowsPerPage, totalRows)} de ${totalRows} registros`;
+    html += '</div>';
+
+    html += '<div class="pagination-controls">';
+
+    // Botón anterior
+    html += `<button class="pagination-btn ${currentPage === 1 ? 'disabled' : ''}"
+             onclick="${onPageChange}(${currentPage - 1})"
+             ${currentPage === 1 ? 'disabled' : ''}>
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <polyline points="15 18 9 12 15 6"/>
+             </svg>
+             Anterior
+         </button>`;
+
+    // Números de página
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, currentPage + 2);
+
+    if (startPage > 1) {
+        html += `<button class="pagination-btn" onclick="${onPageChange}(1)">1</button>`;
+        if (startPage > 2) {
+            html += '<span class="pagination-ellipsis">...</span>';
+        }
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}"
+                 onclick="${onPageChange}(${i})">${i}</button>`;
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += '<span class="pagination-ellipsis">...</span>';
+        }
+        html += `<button class="pagination-btn" onclick="${onPageChange}(${totalPages})">${totalPages}</button>`;
+    }
+
+    // Botón siguiente
+    html += `<button class="pagination-btn ${currentPage === totalPages ? 'disabled' : ''}"
+             onclick="${onPageChange}(${currentPage + 1})"
+             ${currentPage === totalPages ? 'disabled' : ''}>
+             Siguiente
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                 <polyline points="9 18 15 12 9 6"/>
+             </svg>
+         </button>`;
+
+    html += '</div></div>';
+
+    return html;
+}
+
+// Función para paginar datos
+function paginateData(data, page) {
+    const start = (page - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    return data.slice(start, end);
+}
+
+// Cambiar página
+function changePage(page) {
+    if (!currentReportData) return;
+
+    currentPage = page;
+    displayReport(currentReportData.number, currentReportData.data, currentReportData.departments);
+
+    // Scroll suave hacia el reporte
+    document.getElementById('reportResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // Reporte 1: Listado de empleados
 function displayReport1(data, departments) {
-    let html = '<h3>📋 Listado Completo de Empleados</h3>';
-    
+    let html = '<div class="report-header">';
+    html += '<h3>Listado Completo de Empleados</h3>';
+    html += '</div>';
+
     // Filtro de departamento
     html += '<div class="filter-section">';
     html += '<label for="deptFilter">Filtrar por Departamento:</label>';
@@ -74,7 +173,11 @@ function displayReport1(data, departments) {
     });
     html += '</select>';
     html += '</div>';
-    
+
+    // Tabla con paginación
+    const paginatedData = paginateData(data, currentPage);
+
+    html += '<div class="table-container">';
     html += '<table class="data-table">';
     html += '<thead><tr>';
     html += '<th>No. Empleado</th>';
@@ -87,8 +190,8 @@ function displayReport1(data, departments) {
     html += '<th>Título</th>';
     html += '<th>Salario</th>';
     html += '</tr></thead><tbody>';
-    
-    data.forEach(emp => {
+
+    paginatedData.forEach(emp => {
         html += '<tr>';
         html += `<td>${emp.emp_no}</td>`;
         html += `<td>${emp.first_name}</td>`;
@@ -98,13 +201,16 @@ function displayReport1(data, departments) {
         html += `<td>${emp.hire_date}</td>`;
         html += `<td>${emp.dept_name || 'N/A'}</td>`;
         html += `<td>${emp.title || 'N/A'}</td>`;
-        html += `<td>$${emp.salary ? parseInt(emp.salary).toLocaleString() : 'N/A'}</td>`;
+        html += `<td class="salary-cell">$${emp.salary ? parseInt(emp.salary).toLocaleString() : 'N/A'}</td>`;
         html += '</tr>';
     });
-    
+
     html += '</tbody></table>';
-    html += `<p style="margin-top: 20px; text-align: center; color: var(--text-secondary);">Mostrando ${data.length} empleados</p>`;
-    
+    html += '</div>';
+
+    // Paginación
+    html += createPagination(data.length, currentPage, 'changePage');
+
     document.getElementById('reportResult').innerHTML = html;
 }
 
@@ -116,48 +222,69 @@ function filterByDepartment(department) {
 function loadReportWithFilter(reportNumber, department) {
     const resultDiv = document.getElementById('reportResult');
     resultDiv.innerHTML = '<div class="loading-container"><div class="loading"></div><p class="loading-text">Filtrando datos...</p></div>';
-    
+
+    currentPage = 1;
     let url = `api/employees.php?action=report${reportNumber}&department=${department}`;
-    
+
     fetch(url)
         .then(response => response.json())
         .then(result => {
             if (result.success) {
+                currentReportData = {
+                    number: reportNumber,
+                    data: result.data,
+                    departments: result.departments
+                };
                 displayReport1(result.data, result.departments);
                 document.getElementById('deptFilter').value = department;
             }
         })
         .catch(error => {
-            resultDiv.innerHTML = '<p style="color: red;">Error: ' + error + '</p>';
+            resultDiv.innerHTML = '<p class="error-message">Error: ' + error + '</p>';
         });
 }
 
 // Reporte 2: Managers por departamento
 function displayReport2(data) {
-    let html = '<h3>👔 Managers Actuales por Departamento</h3>';
+    const paginatedData = paginateData(data, currentPage);
+
+    let html = '<div class="report-header">';
+    html += '<h3>Managers Actuales por Departamento</h3>';
+    html += '</div>';
+
+    html += '<div class="table-container">';
     html += '<table class="data-table">';
     html += '<thead><tr>';
     html += '<th>Departamento</th>';
     html += '<th>Manager</th>';
     html += '<th>Fecha de Inicio</th>';
     html += '</tr></thead><tbody>';
-    
-    data.forEach(manager => {
+
+    paginatedData.forEach(manager => {
         html += '<tr>';
         html += `<td>${manager.dept_name}</td>`;
         html += `<td>${manager.manager_name}</td>`;
         html += `<td>${manager.from_date}</td>`;
         html += '</tr>';
     });
-    
+
     html += '</tbody></table>';
-    
+    html += '</div>';
+
+    html += createPagination(data.length, currentPage, 'changePage');
+
     document.getElementById('reportResult').innerHTML = html;
 }
 
 // Reporte 3: Mejor pagado por departamento
 function displayReport3(data) {
-    let html = '<h3>💰 Empleado Mejor Pagado por Departamento</h3>';
+    const paginatedData = paginateData(data, currentPage);
+
+    let html = '<div class="report-header">';
+    html += '<h3>Empleado Mejor Pagado por Departamento</h3>';
+    html += '</div>';
+
+    html += '<div class="table-container">';
     html += '<table class="data-table">';
     html += '<thead><tr>';
     html += '<th>Departamento</th>';
@@ -165,62 +292,83 @@ function displayReport3(data) {
     html += '<th>Nombre Completo</th>';
     html += '<th>Salario</th>';
     html += '</tr></thead><tbody>';
-    
-    data.forEach(emp => {
+
+    paginatedData.forEach(emp => {
         html += '<tr>';
         html += `<td>${emp.dept_name}</td>`;
         html += `<td>${emp.emp_no}</td>`;
         html += `<td>${emp.employee_name}</td>`;
-        html += `<td style="color: var(--success); font-weight: 600;">$${parseInt(emp.salary).toLocaleString()}</td>`;
+        html += `<td class="salary-highlight">$${parseInt(emp.salary).toLocaleString()}</td>`;
         html += '</tr>';
     });
-    
+
     html += '</tbody></table>';
-    
+    html += '</div>';
+
+    html += createPagination(data.length, currentPage, 'changePage');
+
     document.getElementById('reportResult').innerHTML = html;
 }
 
 // Reporte 4: Empleados por año
 function displayReport4(data) {
-    let html = '<h3>📅 Total de Empleados Contratados por Año</h3>';
+    const paginatedData = paginateData(data, currentPage);
+
+    let html = '<div class="report-header">';
+    html += '<h3>Total de Empleados Contratados por Año</h3>';
+    html += '</div>';
+
+    html += '<div class="table-container">';
     html += '<table class="data-table">';
     html += '<thead><tr>';
     html += '<th>Año</th>';
     html += '<th>Total de Empleados</th>';
     html += '</tr></thead><tbody>';
-    
-    data.forEach(year => {
+
+    paginatedData.forEach(year => {
         html += '<tr>';
-        html += `<td style="font-weight: 600;">${year.year}</td>`;
+        html += `<td class="year-cell">${year.year}</td>`;
         html += `<td>${parseInt(year.total_employees).toLocaleString()}</td>`;
         html += '</tr>';
     });
-    
+
     html += '</tbody></table>';
-    
+    html += '</div>';
+
+    html += createPagination(data.length, currentPage, 'changePage');
+
     document.getElementById('reportResult').innerHTML = html;
 }
 
 // Reporte 5: Estadísticas por departamento
 function displayReport5(data) {
-    let html = '<h3>🏢 Estadísticas por Departamento</h3>';
+    const paginatedData = paginateData(data, currentPage);
+
+    let html = '<div class="report-header">';
+    html += '<h3>Estadísticas por Departamento</h3>';
+    html += '</div>';
+
+    html += '<div class="table-container">';
     html += '<table class="data-table">';
     html += '<thead><tr>';
     html += '<th>Departamento</th>';
     html += '<th>Total de Empleados</th>';
     html += '<th>Salario Promedio</th>';
     html += '</tr></thead><tbody>';
-    
-    data.forEach(dept => {
+
+    paginatedData.forEach(dept => {
         html += '<tr>';
         html += `<td>${dept.dept_name}</td>`;
         html += `<td>${parseInt(dept.total_employees).toLocaleString()}</td>`;
-        html += `<td style="color: var(--accent-copper); font-weight: 600;">$${parseFloat(dept.avg_salary).toLocaleString()}</td>`;
+        html += `<td class="salary-highlight">$${parseFloat(dept.avg_salary).toLocaleString()}</td>`;
         html += '</tr>';
     });
-    
+
     html += '</tbody></table>';
-    
+    html += '</div>';
+
+    html += createPagination(data.length, currentPage, 'changePage');
+
     document.getElementById('reportResult').innerHTML = html;
 }
 
@@ -228,21 +376,21 @@ function displayReport5(data) {
 function loadChart(chartNumber) {
     const container = document.getElementById('chartContainer');
     container.innerHTML = '<div class="loading-container"><div class="loading"></div><p class="loading-text">Generando gráfico...</p></div>';
-    
+
     // Destruir gráfico anterior si existe
     if (currentChart) {
         currentChart.destroy();
     }
-    
+
     let action = 'chart' + chartNumber;
     let url = 'api/employees.php?action=' + action;
-    
+
     fetch(url)
         .then(response => response.json())
         .then(result => {
             if (result.success) {
                 container.innerHTML = '<canvas id="myChart"></canvas>';
-                
+
                 switch(chartNumber) {
                     case 1:
                         createPieChart(result.data);
@@ -258,21 +406,21 @@ function loadChart(chartNumber) {
                         break;
                 }
             } else {
-                container.innerHTML = '<p style="color: red;">Error: ' + result.error + '</p>';
+                container.innerHTML = '<p class="error-message">Error: ' + result.error + '</p>';
             }
         })
         .catch(error => {
-            container.innerHTML = '<p style="color: red;">Error: ' + error + '</p>';
+            container.innerHTML = '<p class="error-message">Error: ' + error + '</p>';
         });
 }
 
 // Gráfico 1: Pastel - Género
 function createPieChart(data) {
     const ctx = document.getElementById('myChart').getContext('2d');
-    
+
     const labels = data.map(item => item.gender === 'M' ? 'Masculino' : 'Femenino');
     const values = data.map(item => item.total);
-    
+
     currentChart = new Chart(ctx, {
         type: 'pie',
         data: {
@@ -322,10 +470,10 @@ function createPieChart(data) {
 // Gráfico 2: Barras horizontales - Top 10
 function createHorizontalBarChart(data) {
     const ctx = document.getElementById('myChart').getContext('2d');
-    
+
     const labels = data.map(item => item.employee_name);
     const values = data.map(item => item.salary);
-    
+
     currentChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -374,10 +522,10 @@ function createHorizontalBarChart(data) {
 // Gráfico 3: Barras verticales - Promedio por departamento
 function createVerticalBarChart(data) {
     const ctx = document.getElementById('myChart').getContext('2d');
-    
+
     const labels = data.map(item => item.dept_name);
     const values = data.map(item => parseFloat(item.avg_salary));
-    
+
     currentChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -425,12 +573,12 @@ function createVerticalBarChart(data) {
 // Gráfico 4: Brecha salarial
 function createSalaryGapChart(data) {
     const ctx = document.getElementById('myChart').getContext('2d');
-    
+
     const labels = data.map(item => item.dept_name);
     const maxSalaries = data.map(item => item.max_salary);
     const minSalaries = data.map(item => item.min_salary);
     const gaps = data.map(item => item.salary_gap);
-    
+
     currentChart = new Chart(ctx, {
         type: 'bar',
         data: {
